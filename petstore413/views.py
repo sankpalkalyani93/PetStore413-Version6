@@ -1,3 +1,7 @@
+from django.http import HttpResponse
+import razorpay
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from . models import Pet, Product, Cart, CartItem, OrderItems 
 from . forms import OrderCreateForm, SearchForm
@@ -85,7 +89,24 @@ def order_create(request):
                     price = item.product.price if item.product else item.pet.price,
                     quantity = item.quantity
                 )
-            return render(request, 'petstore413/order_created.html', {'order': order})
+            cart.items.all().delete()
+
+            client = razorpay.Client(auth=(settings.RAZORPAY_TEST_KEY_ID, settings.RAZORPAY_TEST_KEY_SECRET))
+            payment_data = {
+                'amount': int(order.total_cost * 100),
+                'currency': 'INR',
+                'receipt': f'order_{order.id}', 
+            }
+            print(payment_data)
+            payment = client.order.create(data=payment_data)
+             
+            return render(request, 'petstore413/order_created.html', {'order': order, 'payment': payment, 'razorpay_key_id': settings.RAZORPAY_TEST_KEY_ID})
     else : 
         form = OrderCreateForm()
     return render(request, 'petstore413/order_create.html', {'cart': cart, 'form': form})
+
+@csrf_exempt
+def process_payment(request):
+    if request.method == 'POST':
+        return HttpResponse("Payment Successful")
+    return HttpResponse(status=400)
